@@ -1,0 +1,217 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{ctex}
+\title{手写数字识别实验报告}
+\author{}
+
+\usepackage{braket}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, anchorcolor=green, citecolor=green}
+\usepackage{bm}
+\usepackage{amssymb, amsmath, amsthm}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usetikzlibrary{arrows.meta}
+
+\newtheorem{theorem}{定理}[section]
+\newtheorem{definition}{定义}[section]
+
+\def\i{{\bf i}}
+\def\j{{\bf j}}
+\def\k{{\bf k}}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    \includegraphics[width=0.6\textwidth]{ucas_logo.pdf}
+    \vspace{1cm}
+    
+    {\Huge\bfseries 深度学习作业1\par}
+    \vspace{1cm}
+    {\huge 手写数字识别实验\par}
+    \vspace{3cm}
+    
+    \begin{tabular}{rl}
+        {\kaishu\Large 学号：} & {\kaishu\Large \underline{\makebox[6cm]{202528014629014}}} \\[0.8cm]
+        {\kaishu\Large 姓名：} & {\kaishu\Large \underline{\makebox[6cm]{刘浩}}} \\[0.8cm]
+        {\kaishu\Large 院所：} & {\kaishu\Large \underline{\makebox[6cm]{人工智能学院}}} \\[0.8cm]
+    \end{tabular}
+    
+    \vfill
+    
+    {\large \today\par}
+\end{titlepage}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{实验目的}
+
+\begin{enumerate}
+    \item 掌握卷积神经网络（CNN）的基本原理
+    \item 学习使用PyTorch框架构建和训练深度学习模型
+    \item 了解GPU加速在深度学习中的应用
+    \item 在MNIST数据集上实现手写数字识别，达到98\%以上准确率
+\end{enumerate}
+
+\section{实验原理}
+
+\subsection{卷积神经网络架构}
+
+卷积神经网络（Convolutional Neural Network, CNN）是一类深度学习模型，特别适合处理图像数据。CNN通过卷积操作提取图像的局部特征。
+
+\subsubsection{卷积操作}
+
+卷积运算可表示为：
+\begin{equation}
+S(i,j) = (I * K)(i,j) = \sum_m \sum_n I(i+m, j+n) K(m,n)
+\end{equation}
+
+其中$I$为输入图像，$K$为卷积核。卷积核在输入图像上滑动，每个位置的卷积结果形成输出特征图。
+
+\subsubsection{激活函数与池化}
+
+激活函数为网络引入非线性。本实验采用ReLU激活函数：
+\begin{equation}
+\text{ReLU}(x) = \max(0, x)
+\end{equation}
+
+池化操作下采样特征图，减少计算量。最大池化取局部窗口内的最大值。
+
+\subsection{模型结构}
+
+网络包含两层卷积和一层全连接层。第一层卷积将1通道的输入转换为16通道的特征，再经过ReLU和2×2的最大池化；第二层卷积进一步提取特征，输出32通道。经过池化后，特征图尺寸变为7×7，展平后通过全连接层输出10个类别的概率。
+
+特征图尺寸变化如下：$1 \times 28 \times 28 \to 16 \times 28 \times 28 \to 16 \times 14 \times 14 \to 32 \times 14 \times 14 \to 32 \times 7 \times 7 \to 1568 \to 10$。
+
+\section{实验环境与数据集}
+
+\subsection{实验环境}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+工具/框架 & 说明 \\
+\midrule
+Python & 编程语言 \\
+PyTorch & 深度学习框架 \\
+CUDA & GPU加速计算 \\
+Matplotlib & 数据可视化 \\
+scikit-learn & 机器学习工具库 \\
+\bottomrule
+\end{tabular}
+\caption{实验环境配置}
+\label{tab:environment}
+\end{table}
+
+\subsection{数据集}
+
+MNIST是手写数字识别的标准benchmark，包含60000个训练样本和10000个测试样本。每个样本是28×28像素的灰度图像，标签为数字0-9。
+
+\section{实验过程}
+
+\subsection{数据准备与模型训练}
+
+从torchvision库加载MNIST数据集，将图像转换为张量格式。使用batch\_size=64的DataLoader进行批量加载，训练集随机打乱，测试集保持原序。
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccc}
+\toprule
+参数 & 配置 & 说明 \\
+\midrule
+优化器 & Adam & 自适应学习率优化器 \\
+学习率 & 0.001 & 初始学习率 \\
+损失函数 & CrossEntropyLoss & 多分类交叉熵损失 \\
+批大小 & 64 & 每批处理样本数 \\
+总Epoch & 15 & 训练轮数 \\
+设备 & CUDA & 使用GPU加速 \\
+\bottomrule
+\end{tabular}
+\caption{训练配置参数}
+\label{tab:training_config}
+\end{table}
+
+训练采用标准流程：前向传播计算损失，反向传播更新参数，每个epoch后在测试集评估性能。保存准确率最优的模型权重用于最终评估。
+
+\section{实验结果}
+
+\subsection{性能指标}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+指标 & 结果 \\
+\midrule
+最优测试准确率 & 99.19\% \\
+最终测试准确率 & 99.14\% \\
+最优准确率对应epoch & 第13个 \\
+最终测试集损失 & 0.0387 \\
+\bottomrule
+\end{tabular}
+\caption{实验结果统计}
+\label{tab:results}
+\end{table}
+\subsection{训练过程分析}
+
+\subsubsection{准确率曲线}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{accuracy.png}
+\caption{训练与测试准确率变化曲线}
+\label{fig:accuracy}
+\end{figure}
+
+图\ref{fig:accuracy}显示了模型的收敛过程。前两个epoch准确率从94\%快速提升到98\%，说明模型快速学习了基本特征。在第13个epoch时达到最高的99.19\%。后续的epoch中，准确率稳定在99\%左右，表明模型已充分收敛。训练集和测试集准确率的曲线基本重合，未出现明显过拟合。
+
+
+\subsubsection{损失函数}
+
+
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{loss.png}
+\caption{训练与测试损失函数变化曲线}
+\label{fig:loss}
+\end{figure}
+
+损失曲线（图\ref{fig:loss}）显示，第1个epoch损失大幅下降，从0.196降到0.054。之后损失保持平缓的下降趋势，最终稳定在0.03至0.04之间。训练集和测试集损失曲线保持一致，验证了模型的泛化能力。
+
+\subsubsection{混淆矩阵}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{confusion_matrix.png}
+\caption{测试集混淆矩阵}
+\label{fig:confusion}
+\end{figure}
+
+混淆矩阵（图\ref{fig:confusion}）的对角线上数值远大于其他位置。数字0、1、3、7的识别最准确，几乎没有误分类。数字5出现了最多的误分类（约12个错误），这可能是因为手写的5容易与3或8混淆。总体而言，所有数字的识别准确率都在97\%以上。
+
+\subsubsection{测试样本}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{predictions.png}
+\caption{测试样本与预测结果}
+\label{fig:predictions}
+\end{figure}
+
+图\ref{fig:predictions}展示了随机抽的16个测试样本，全部识别正确，这进一步证实了模型的有效性。
+
+\newpage
+\section{总结}
+
+本实验成功构建了CNN模型，在MNIST数据集上实现了99.19\%的准确率。实验过程中，合理的网络设计和适当的训练参数选择都对最终结果产生了重要影响。
+
+通过本实验，我们掌握了PyTorch框架的使用，理解了CNN的工作原理，并验证了GPU加速对训练速度的显著提升。这些知识和经验可以应用到更复杂的图像分类任务中。
+
+\end{document}

@@ -1,0 +1,386 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage{ctex}
+\title{基于ViT的CIFAR-10图像分类实验报告}
+\author{}
+
+\usepackage{braket}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, anchorcolor=green, citecolor=green}
+\usepackage{bm}
+\usepackage{amssymb, amsmath, amsthm}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usetikzlibrary{arrows.meta}
+
+\newtheorem{theorem}{定理}[section]
+\newtheorem{definition}{定义}[section]
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+    \includegraphics[width=0.6\textwidth]{ucas_logo.pdf}
+    \vspace{1cm}
+    
+    {\Huge\bfseries 深度学习作业2\par}
+    \vspace{1cm}
+    {\LARGE  基于ViT的CIFAR-10图像分类实验\par}
+    \vspace{3cm}
+
+    \begin{tabular}{rl}
+        {\kaishu\Large 学号：} & {\kaishu\Large \underline{\makebox[6cm]{202528014629014}}} \\[0.8cm]
+        {\kaishu\Large 姓名：} & {\kaishu\Large \underline{\makebox[6cm]{刘浩}}} \\[0.8cm]
+        {\kaishu\Large 院所：} & {\kaishu\Large \underline{\makebox[6cm]{人工智能学院}}} \\[0.8cm]
+    \end{tabular}
+
+    \vfill
+
+    {\large \today\par}
+\end{titlepage}
+
+% \begin{titlepage}
+%     \centering
+%     \vspace*{2cm}
+
+%     {\Huge\bfseries 深度学习作业2\par}
+%     \vspace{1cm}
+%     {\huge 基于ViT的CIFAR-10图像分类实验\par}
+%     \vspace{3cm}
+
+%     \begin{tabular}{rl}
+%         {\kaishu\Large 学号：} & {\kaishu\Large \underline{\makebox[6cm]{202528014629014}}} \\[0.8cm]
+%         {\kaishu\Large 姓名：} & {\kaishu\Large \underline{\makebox[6cm]{刘浩}}} \\[0.8cm]
+%         {\kaishu\Large 院所：} & {\kaishu\Large \underline{\makebox[6cm]{人工智能学院}}} \\[0.8cm]
+%     \end{tabular}
+
+%     \vfill
+
+%     {\large \today\par}
+% \end{titlepage}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ==============================================================
+\section{实验目的}
+% ==============================================================
+
+\begin{enumerate}
+    \item 理解Vision Transformer (ViT) 的核心思想，掌握自注意力机制在图像分类中的应用
+    \item 从零实现ViT模型，包括Patch Embedding、位置编码、Transformer Encoder等关键组件
+    \item 在CIFAR-10数据集上训练ViT模型，达到80\%以上的测试准确率
+    \item 深入理解模型的训练行为与分类特性
+\end{enumerate}
+
+% ==============================================================
+\section{实验原理}
+% ==============================================================
+
+\subsection{Vision Transformer 架构概述}
+
+Vision Transformer (ViT) 由Dosovitskiy等人于2020年提出\cite{dosovitskiy2020image}，其核心思想是将图像视为一组视觉"词元"（token），直接应用NLP领域的Transformer架构进行图像分类。与CNN依赖局部卷积不同，ViT通过全局自注意力机制捕获图像各区域之间的长程依赖关系。
+
+ViT的整体流程为：
+\begin{equation}
+\begin{aligned}
+\text{Image} &\xrightarrow{\text{Patch Embed}} \text{Token序列} \\
+             &\xrightarrow{+\text{Pos Embed}} \text{Transformer Encoder} \\
+             &\xrightarrow{\text{CLS Token}} \text{MLP Head} \\
+             &\to \text{类别预测}
+\end{aligned}
+\end{equation}
+
+\subsection{Patch Embedding}
+
+给定输入图像 $\bm{x} \in \mathbb{R}^{H \times W \times C}$，ViT首先将其切分为大小为 $P \times P$ 的非重叠图像块（patch）。对于 $32 \times 32$ 的CIFAR-10图像、$P=4$ 的patch大小，共产生 $N = (32/4)^2 = 64$ 个patch。
+
+每个patch被展平为向量 $\bm{x}_p^i \in \mathbb{R}^{P^2 \cdot C}$（维度为 $4 \times 4 \times 3 = 48$），再通过线性投影映射到 $D$ 维嵌入空间：
+\begin{equation}
+\bm{z}_0^i = \bm{E} \bm{x}_p^i + \bm{e}_{pos}^i, \quad \bm{E} \in \mathbb{R}^{D \times (P^2 C)}
+\end{equation}
+
+其中 $\bm{e}_{pos}^i$ 为可学习的位置编码，用于保留空间位置信息。此外，在序列前端拼接一个可学习的分类token $\bm{z}_0^{[\text{CLS}]}$，使总序列长度为 $N+1=65$。
+
+\subsection{多头自注意力机制}
+
+Transformer Encoder的核心是多头自注意力机制（Multi-Head Self-Attention, MHSA）。对输入 $\bm{Z} \in \mathbb{R}^{(N+1) \times D}$，首先通过线性投影得到查询、键、值矩阵：
+\begin{equation}
+\bm{Q} = \bm{Z}\bm{W}_Q, \quad \bm{K} = \bm{Z}\bm{W}_K, \quad \bm{V} = \bm{Z}\bm{W}_V
+\end{equation}
+
+其中 $\bm{W}_Q, \bm{W}_K, \bm{W}_V \in \mathbb{R}^{D \times d_k}$。注意力计算为：
+\begin{equation}
+\text{Attention}(\bm{Q}, \bm{K}, \bm{V}) = \text{softmax}\left(\frac{\bm{Q}\bm{K}^\top}{\sqrt{d_k}}\right)\bm{V}
+\end{equation}
+
+多头注意力将嵌入维度拆分为 $h$ 个头，每个头独立计算注意力后拼接：
+\begin{equation}
+\text{MHSA}(\bm{Z}) = \text{Concat}(\text{head}_1, \dots, \text{head}_h)\bm{W}_O
+\end{equation}
+
+本实验使用 $h=8$ 个注意力头，每个头的维度 $d_k = 64$。
+
+\subsection{Transformer Encoder Block}
+
+每个Transformer Block由MHSA和前馈网络（FFN）组成，均采用Pre-Norm残差连接：
+\begin{align}
+\bm{z}'_l &= \text{MHSA}(\text{LN}(\bm{z}_{l-1})) + \bm{z}_{l-1} \\
+\bm{z}_l &= \text{FFN}(\text{LN}(\bm{z}'_l)) + \bm{z}'_l
+\end{align}
+
+FFN为两层全连接网络，使用GELU激活函数：
+\begin{equation}
+\text{FFN}(\bm{x}) = \bm{W}_2 \cdot \text{GELU}(\bm{W}_1 \bm{x} + \bm{b}_1) + \bm{b}_2
+\end{equation}
+
+\subsection{分类头}
+
+经过 $L$ 层Transformer Encoder后，取CLS token的输出 $\bm{z}_L^{[\text{CLS}]}$，通过线性层映射到类别数：
+\begin{equation}
+\hat{y} = \text{Linear}(\text{LN}(\bm{z}_L^{[\text{CLS}]})) \in \mathbb{R}^{10}
+\end{equation}
+
+% ==============================================================
+\section{实验环境与数据集}
+% ==============================================================
+
+\subsection{实验环境}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+工具/框架 & 说明 \\
+\midrule
+Python 3.10 & 编程语言 \\
+PyTorch & 深度学习框架 \\
+CUDA & GPU加速计算 \\
+einops & 张量重排工具 \\
+Matplotlib / Seaborn & 数据可视化 \\
+scikit-learn & 评估指标计算 \\
+\bottomrule
+\end{tabular}
+\caption{实验环境配置}
+\label{tab:environment}
+\end{table}
+
+\subsection{数据集}
+
+CIFAR-10数据集包含60000张$32 \times 32$像素的彩色图像，分为10个类别：飞机（Airplane）、汽车（Automobile）、鸟（Bird）、猫（Cat）、鹿（Deer）、狗（Dog）、蛙（Frog）、马（Horse）、船（Ship）和卡车（Truck）。其中50000张用于训练，10000张用于测试，每个类别各有1000张测试图像。
+
+相比实验一中使用的MNIST数据集，CIFAR-10具有以下挑战：
+\begin{itemize}
+    \item \textbf{彩色图像}：三通道RGB图像，信息量更大
+    \item \textbf{类内多样性高}：同一类别的物体在姿态、光照、遮挡等方面差异显著
+    \item \textbf{类间相似性}：如猫与狗、卡车与汽车在视觉特征上高度相似
+\end{itemize}
+
+数据增强策略包括随机裁剪和随机水平翻转，并使用ImageNet均值和标准差进行归一化。
+
+% ==============================================================
+\section{模型设计与实现}
+% ==============================================================
+
+\subsection{模型架构}
+
+本实验从零实现了一个适配CIFAR-10的小型ViT模型。由于CIFAR-10图像尺寸仅为$32 \times 32$（远小于ViT原论文中的$224 \times 224$），我们使用较小的patch大小和模型维度以避免参数冗余。
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccc}
+\toprule
+超参数 & 值 & 说明 \\
+\midrule
+Image Size & 32 & CIFAR-10图像尺寸 \\
+Patch Size & 4 & 每个patch为$4\times 4$像素 \\
+Embedding Dim ($D$) & 256 & token嵌入维度 \\
+Depth ($L$) & 6 & Transformer层数 \\
+Heads ($h$) & 8 & 注意力头数 \\
+Head Dim ($d_k$) & 64 & 每头维度 \\
+MLP Dim & 512 & FFN隐藏层维度 \\
+Dropout & 0.1 & Dropout率 \\
+\bottomrule
+\end{tabular}
+\caption{ViT模型超参数}
+\label{tab:model_config}
+\end{table}
+
+模型的特征维度变化如下：
+\begin{equation*}
+\underbrace{3 \times 32 \times 32}_{\text{输入图像}} \to \underbrace{64 \times 48}_{\text{展平patch}} \to \underbrace{65 \times 256}_{\text{+CLS token}} \xrightarrow{\times 6 \text{ layers}} \underbrace{65 \times 256}_{\text{Transformer输出}} \to \underbrace{256}_{\text{CLS}} \to \underbrace{10}_{\text{类别}}
+\end{equation*}
+
+模型总参数量为\textbf{4.76M}。
+
+\subsection{训练配置}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{ccc}
+\toprule
+参数 & 配置 & 说明 \\
+\midrule
+优化器 & AdamW & 带权重衰减的自适应优化器 \\
+学习率 & $3 \times 10^{-4}$ & 初始学习率 \\
+权重衰减 & 0.05 & 正则化强度 \\
+学习率调度 & CosineAnnealing & 余弦退火学习率衰减 \\
+损失函数 & CrossEntropyLoss & 多分类交叉熵损失 \\
+批大小 & 128 & 每批处理样本数 \\
+总Epoch & 80 & 训练轮数 \\
+设备 & NVIDIA-A100 & 使用GPU加速 \\
+\bottomrule
+\end{tabular}
+\caption{训练配置参数}
+\label{tab:training_config}
+\end{table}
+
+训练采用标准流程：前向传播计算交叉熵损失，反向传播更新参数，每个epoch后在测试集评估性能。使用余弦退火学习率调度器（图\ref{fig:lr}），使学习率从$3 \times 10^{-4}$平滑衰减至接近0，有助于模型在训练后期精细调优。
+
+% ==============================================================
+\section{实验结果与分析}
+% ==============================================================
+
+\subsection{总体性能}
+
+模型在第70个epoch达到最优测试准确率\textbf{83.29\%}，成功超过80\%的目标要求。总体指标如表\ref{tab:results}所示，宏平均Precision、Recall与F1-Score均在83\%左右，说明模型未严重偏向特定类别。
+
+\begin{table}[H]
+\centering
+\begin{tabular}{cc}
+\toprule
+指标 & 结果 \\
+\midrule
+最优测试准确率 & \textbf{83.29\%} \\
+最优准确率对应epoch & 第70个 \\
+最终训练准确率 & 93.36\% \\
+模型参数量 & 4.76M \\
+Macro F1-Score & 83.13\% \\
+\bottomrule
+\end{tabular}
+\caption{实验结果统计}
+\label{tab:results}
+\end{table}
+
+\subsection{训练收敛过程}
+
+为了理解模型如何达到上述性能，我们首先考察训练过程中的损失与准确率变化（图\ref{fig:loss}、\ref{fig:accuracy}）。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig1_loss.png}
+\caption{训练与验证损失变化曲线（含EMA平滑）}
+\label{fig:loss}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig2_accuracy.png}
+\caption{训练与验证准确率变化曲线}
+\label{fig:accuracy}
+\end{figure}
+
+从两张曲线中可以辨认出三个阶段：\textbf{（1）快速学习期}（epoch 1--30）：训练损失从1.597急剧下降至0.48，测试准确率从52.6\%攀升至约79\%，模型在此阶段学习到了区分大类的基本视觉特征；\textbf{（2）精细调优期}（epoch 30--55）：损失下降速度放缓，测试准确率以每epoch约0.1\%的速度缓慢提升，模型在第33个epoch首次达到80\%的目标线；\textbf{（3）饱和期}（epoch 55--80）：测试准确率在83\%附近波动，验证损失停滞在0.60左右，而训练损失仍在下降——训练集与测试集的表现开始分离。
+
+这种分离在泛化间隙图（图\ref{fig:gap}）中体现得更为清晰：前20个epoch间隙不足5\%，40个epoch后突破10\%。这是ViT在小数据集上的典型表现——Transformer缺乏CNN的归纳偏置（局部性、平移等变性），需要更大规模的数据才能充分泛化。不过，得益于Dropout（0.1）和权重衰减（0.05）的正则化，测试准确率并未出现下降，过拟合被控制在了可接受的范围内。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig3_gap.png}
+\caption{泛化间隙随训练进程的变化}
+\label{fig:gap}
+\end{figure}
+
+图\ref{fig:dynamics}进一步从"损失改善速率"和"Train-Val损失轨迹"两个角度验证了上述三阶段划分。左图中，训练初期的改善速率高达0.04/epoch，在40个epoch后验证损失的改善速率已降为负值（即验证损失开始回升）；右图中，散点从$y=x$线附近逐渐偏离到上方，直观地反映了训练损失与验证损失的"剪刀差"。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{fig11_dynamics.png}
+\caption{训练动态：(左) 损失改善速率 (右) Train-Val损失轨迹散点图}
+\label{fig:dynamics}
+\end{figure}
+
+\subsection{分类性能与错误模式}
+
+模型整体达到了83.29\%的准确率，但各类别的表现差异显著。图\ref{fig:per_class}将10个类别按准确率升序排列：Automobile（94.0\%）和Frog（91.3\%）位列前两名，而Cat（64.3\%）和Dog（72.8\%）明显落后，Cat甚至是唯一未达到80\%目标线的类别。这一分布揭示了一个清晰的规律：\textbf{人造物体}（Automobile、Ship、Truck）具有规则的几何轮廓和鲜明的纹理，ViT的全局注意力能够轻松捕获；而\textbf{动物类别}（Cat、Dog、Bird）形态多变、类间相似度高，对细粒度判别能力要求更高。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig6_per_class.png}
+\caption{各类别测试准确率}
+\label{fig:per_class}
+\end{figure}
+
+那么，这些低准确率类别的错误究竟发生在哪里？混淆矩阵（图\ref{fig:confusion}）给出了答案。对角线上大部分类别的正确率在80\%以上，但Cat行中有13.8\%被误判为Dog、5.4\%被误判为Bird、4.9\%被误判为Frog——Cat的错误几乎"分散"到了所有其他动物类别。反过来，Dog行中也有10.7\%被误判为Cat。Cat与Dog之间的双向混淆合计245次，占全部1671个错误的14.7\%，是影响整体准确率的最大瓶颈。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig5_confusion.png}
+\caption{归一化混淆矩阵}
+\label{fig:confusion}
+\end{figure}
+
+为了更系统地展示类别间的语义关系，图\ref{fig:semantic}对混淆矩阵进行了对称化处理，得到类间"混淆亲和度"热力图。从中可以清晰地辨识出三个语义混淆簇：\textbf{Cat--Dog}（四足哺乳动物，毛皮纹理相似）、\textbf{Automobile--Truck}（道路交通工具，共享车轮车身特征）、以及\textbf{Bird--Deer--Frog}（自然背景中的中小型动物）。这些混淆簇与人类直觉高度一致，表明模型的错误并非随机，而是集中在视觉语义接近的类别对上。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{fig12_semantic.png}
+\caption{类间语义混淆亲和热力图}
+\label{fig:semantic}
+\end{figure}
+
+图\ref{fig:samples}展示了部分正确和错误分类的样本。正确样本通常主体清晰、特征典型；而错误样本往往存在视觉歧义——例如低分辨率下某些猫的图像确实与狗难以区分，这进一步佐证了上述语义混淆的分析。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{fig9_samples.png}
+\caption{正确与错误分类的典型样本}
+\label{fig:samples}
+\end{figure}
+
+最后，图\ref{fig:radar}以雷达图综合展示各类别的准确率与F1分数。两条曲线形态高度一致，说明各类别的Precision和Recall较为均衡，不存在某个类别"精确但遗漏严重"的极端情况。Cat的明显凹陷与Automobile/Frog的凸起，概括了本模型在CIFAR-10上的优势与短板。
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{fig10_radar.png}
+\caption{各类别准确率与F1分数雷达图}
+\label{fig:radar}
+\end{figure}
+
+% ==============================================================
+\section{总结与思考}
+% ==============================================================
+
+\subsection{实验总结}
+
+本实验从零实现了Vision Transformer模型，并在CIFAR-10数据集上达到了\textbf{83.29\%}的最优测试准确率，成功超过80\%的目标要求。主要发现如下：
+
+\begin{enumerate}
+    \item \textbf{ViT在小数据集上的局限性}：与CNN相比，ViT缺乏归纳偏置（局部性、平移等变性），在仅50000张训练图像的CIFAR-10上出现了约10\%的泛化间隙。这符合ViT原论文的结论——Transformer需要大规模数据集（如ImageNet-21k或JFT-300M）才能充分发挥优势。
+
+    \item \textbf{类别间的语义混淆}：猫与狗之间的互相误判是影响整体准确率的最大因素（245次/1671次总错误），这揭示了$32 \times 32$低分辨率下细粒度分类的固有困难。
+
+    \item \textbf{人造物体vs自然物体}：模型对几何结构规则的人造物体（Automobile: 94.0\%, Ship: 87.7\%）的分类效果显著优于形态多变的动物类别（Cat: 64.3\%, Dog: 72.8\%），说明ViT的全局注意力更擅长捕获规则化的视觉模式。
+
+    \item \textbf{训练策略的有效性}：CosineAnnealing学习率调度、AdamW优化器和适度的正则化（Dropout + Weight Decay）组合在ViT训练中表现稳定，损失曲线平滑无振荡。
+\end{enumerate}
+
+\subsection{可能的改进方向}
+
+\begin{itemize}
+    \item \textbf{数据增强增强}：引入更强的数据增强（如MixUp、CutMix、RandAugment）可以有效缓解小数据集上的过拟合问题
+    \item \textbf{混合架构}：使用CNN提取局部特征后再输入Transformer（如CvT、CoAtNet），结合两者的优势
+    \item \textbf{知识蒸馏}：使用预训练的大型模型蒸馏知识到小型ViT，提升小模型的泛化能力（如DeiT的方法）
+    \item \textbf{位置编码改进}：采用2D相对位置编码替代可学习的绝对位置编码，更好地利用图像的空间结构
+\end{itemize}
+
+\begin{thebibliography}{9}
+\bibitem{dosovitskiy2020image} Dosovitskiy, A., et al. An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale. \textit{ICLR}, 2021.
+\end{thebibliography}
+
+\end{document}
