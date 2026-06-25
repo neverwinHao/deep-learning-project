@@ -22,7 +22,5 @@
 │   ├── code/          # 训练与可视化代码
 │   ├── figs/          # 实验结果图表
 │   └── report.tex     # 实验报告 (LaTeX)
-├── info-retrieval/
-│   └── survey.tex     # 信息检索排序模型个人综述
 └── ucas_logo.pdf
 ```
