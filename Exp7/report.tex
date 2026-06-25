@@ -4,6 +4,7 @@
 \author{}
 
 \usepackage{hyperref}
+\usepackage{xurl}
 \hypersetup{colorlinks=true, linkcolor=blue, anchorcolor=green, citecolor=green}
 \usepackage{bm}
 \usepackage{amssymb, amsmath, amsthm}
@@ -226,8 +227,6 @@ Dropout在LSTM语言模型中的应用需要特别注意：不能在时间步之
 
 本实验成功实现了基于LSTM的神经网络语言模型，在Penn Treebank数据集上，Medium模型测试PPL=75.92、Large模型测试PPL=72.48，均达到了低于80的实验要求。通过对比三种不同规模的模型，深入理解了模型容量、正则化强度与泛化性能之间的平衡关系：容量过小（Small）导致欠拟合，容量增大带来的收益递减（Medium到Large仅改善4.5\%），而Dropout率需要与模型容量匹配递增。实验中掌握的权重绑定、层间Dropout、学习率衰减等技术对于后续的序列建模任务具有重要参考价值。
 
-\begin{sloppypar}
 本实验代码位于：\url{https://github.com/neverwinHao/deep-learning-project/tree/main/Exp7/code}
-\end{sloppypar}
 
 \end{document}
